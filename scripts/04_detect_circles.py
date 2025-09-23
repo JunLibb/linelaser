@@ -3,6 +3,8 @@ import numpy as np
 import os
 
 # 添加项目根目录到 Python 路径
+import sys
+from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.detect_circles import find_circles
 from src.visualization import plot_circles

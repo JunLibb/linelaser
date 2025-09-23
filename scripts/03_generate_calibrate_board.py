@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import json
 
 # 添加项目根目录到 Python 路径
+import sys
+from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.calibration_circle import generate_circle_array
 

@@ -4,7 +4,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.debayer import debayer_image
 
-from pathlib import Path
 import cv2
 import argparse
 def main():
