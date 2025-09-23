@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import os
 
-from fscan2.detect_circles import find_circles
-from fscan2.visualization import plot_circles
+from ..src.detect_circles import find_circles
+from ..src.visualization import plot_circles
 
 workpath = './output'
 imagepath = './output/merge'

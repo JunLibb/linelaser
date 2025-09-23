@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import os
 import json
-from fscan2.match import match_all_circles_normalized
-from fscan2.detect_circles import detect_circles
-from fscan2.visualization import plot_matched_circles
+from ..src.match import match_all_circles_normalized
+from ..src.detect_circles import detect_circles
+from ..src.visualization import plot_matched_circles
 
 
 workpath = './output'

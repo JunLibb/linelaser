@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from fscan2.calibration_circle import generate_circle_array
+from ..src.calibration_circle import generate_circle_array
 import json
 
 def save_circle_array(filename, circle_array):

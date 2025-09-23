@@ -1,7 +1,7 @@
 import os
 import cv2
 import numpy as np
-from fscan2.merge import getHomography_bgimage, stitch_images
+from ..src.merge import getHomography_bgimage, stitch_images
 
 # 输入和输出路径
 input_dir = './output/rgb'
