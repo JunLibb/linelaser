@@ -2,8 +2,10 @@ import cv2
 import numpy as np
 import os
 
-from ..src.detect_circles import find_circles
-from ..src.visualization import plot_circles
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.detect_circles import find_circles
+from src.visualization import plot_circles
 
 workpath = './output'
 imagepath = './output/merge'

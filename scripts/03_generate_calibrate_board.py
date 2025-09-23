@@ -1,7 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from ..src.calibration_circle import generate_circle_array
 import json
+
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.calibration_circle import generate_circle_array
 
 def save_circle_array(filename, circle_array):
     """Save circle array to a JSON file"""

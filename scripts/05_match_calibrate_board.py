@@ -2,9 +2,11 @@ import cv2
 import numpy as np
 import os
 import json
-from ..src.match import match_all_circles_normalized
-from ..src.detect_circles import detect_circles
-from ..src.visualization import plot_matched_circles
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.match import match_all_circles_normalized
+from src.detect_circles import detect_circles
+from src.visualization import plot_matched_circles
 
 
 workpath = './output'

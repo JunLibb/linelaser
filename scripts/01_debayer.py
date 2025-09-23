@@ -1,15 +1,12 @@
+# 添加项目根目录到 Python 路径
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.debayer import debayer_image
+
 from pathlib import Path
 import cv2
 import argparse
-
-# 添加项目根目录到 Python 路径
-import sys
-PROJECT_ROOT = Path(__file__).parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.debayer import debayer_image
-
 def main():
     parser = argparse.ArgumentParser(description="Batch debayer images with even-image flip rule.")
     parser.add_argument("--input-dir", type=str, default="./data/raw", help="Input directory containing raw PNGs")
