@@ -3,12 +3,14 @@ import cv2
 import numpy as np
 
 # 添加项目根目录到 Python 路径
+import sys
+from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.merge import getHomography_bgimage, stitch_images
 
 # 输入和输出路径
-input_dir = './output/rgb'
-output_dir = './output/merge'
+input_dir = './output/debayer'
+output_dir = './output/rgb'
 output_dir_stitch = './output'
 
 # 创建输出文件夹

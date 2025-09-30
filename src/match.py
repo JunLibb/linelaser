@@ -44,7 +44,7 @@ def compute_relative_angles(angle_matrix):
     return rel_angles
 
 # 计算两个点集之间的匹配分数
-def compute_match_score(pts1, pts2, dist_threshold=0.1, angle_threshold=0.2):
+def _compute_match_score(pts1, pts2, dist_threshold=0.1, angle_threshold=0.2):
     if len(pts1) != len(pts2):
         return float('-inf')
         
@@ -113,7 +113,7 @@ def compute_match_score(pts1, pts2, dist_threshold=0.1, angle_threshold=0.2):
     return best_score, best_mapping
 
 
-def match_big_circles(circles1, circles2, num_big=5):
+def _match_big_circles(circles1, circles2, num_big=5):
     """
     输入两组圆（x,y,r）,使用大圆进行匹配，能够适应图像旋转的情况。
     返回: matched_pts1, matched_pts2
@@ -127,7 +127,7 @@ def match_big_circles(circles1, circles2, num_big=5):
     circles2_arr = np.array(big_circles2)[:, :2]
 
     # 计算匹配分数和映射关系
-    score, mapping = compute_match_score(circles1_arr, circles2_arr)
+    score, mapping = _compute_match_score(circles1_arr, circles2_arr)
     
     if not mapping or len(mapping) < 3:  # 至少需要3个匹配点
         print('无法找到足够的匹配点')
@@ -150,11 +150,12 @@ def match_all_circles(circles1, circles2):
     """
 
     # 1. 大圆配对
-    circles1_big, circles2_big = match_big_circles(circles1, circles2)
+    circles1_big, circles2_big = _match_big_circles(circles1, circles2)
     if circles1_big is None or circles2_big is None:
         print('大圆配对失败')
         return None, None, None
     
+    # 2. 大圆单应矩阵
     pts1_big = np.array([[c[0], c[1]] for c in circles1_big], dtype=np.float32)
     pts2_big = np.array([[c[0], c[1]] for c in circles2_big], dtype=np.float32)
     H, mask = cv2.findHomography(pts2_big, pts1_big, cv2.RANSAC, 5.0)
