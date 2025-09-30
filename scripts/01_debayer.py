@@ -9,7 +9,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description="Batch debayer images with even-image flip rule.")
     parser.add_argument("--input-dir", type=str, default="./data/raw", help="Input directory containing raw PNGs")
-    parser.add_argument("--output-dir", type=str, default="./output/rgb", help="Output directory for processed PNGs")
+    parser.add_argument("--output-dir", type=str, default="./output/debayer", help="Output directory for processed PNGs")
     parser.add_argument("--pattern", type=str, default="GBRG", choices=["BGGR", "GBRG", "GRBG", "RGGB"], help="Bayer pattern")
     args = parser.parse_args()
 
