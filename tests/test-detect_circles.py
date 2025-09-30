@@ -1,8 +1,10 @@
 import os
 import cv2
-
-from fscan2.detect_circles import detect_circles, find_circles, detect_circles_with_subpixel
-from fscan2.visualization import plot_circles
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.detect_circles import detect_circles, find_circles, detect_circles_with_subpixel
+from src.visualization import plot_circles
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))

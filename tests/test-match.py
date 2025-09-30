@@ -1,8 +1,11 @@
 import os
 import cv2
-from fscan2.match import match_all_circles_normalized, match_big_circles
-from fscan2.detect_circles import detect_circles
-from fscan2.visualization import plot_circles
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.match import match_all_circles_normalized, match_big_circles
+from src.detect_circles import detect_circles
+from src.visualization import plot_circles
 
 def plot_big_circles(img1, img2, circles1, circles2):
     circles1_big, circles2_big = match_big_circles(circles1, circles2)
