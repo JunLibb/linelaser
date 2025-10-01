@@ -2,10 +2,11 @@ from .detect_circles import detect_circles
 
 from scipy.spatial import cKDTree
 from sklearn.cluster import KMeans
-
 import numpy as np
 import cv2
 import os
+from pathlib import Path
+from typing import List, Optional, Tuple, Union, Any
 
 # 计算每对点之间的距离矩阵
 def compute_distance_matrix(points):
@@ -143,7 +144,7 @@ def _match_big_circles(circles1, circles2, num_big=5):
     return matched_circles1, matched_circles2
 
 
-def match_all_circles(circles1, circles2):
+def match_circles_without_normalization(circles1, circles2):
     """
     输入两组圆（x,y,r）,先用大圆配对算单应矩阵，再对所有圆做最小距离配对。
     返回: matched_circles1, matched_circles2, dist
@@ -172,6 +173,7 @@ def match_all_circles(circles1, circles2):
     tree = cKDTree(pts1)
     dist, idx = tree.query(pts2_warped)
     
+    # 7. 去除错误的匹配
     # 使用K-means将距离分为两类（有效匹配和异常值）
     dist_reshaped = dist.reshape(-1, 1)
     kmeans = KMeans(n_clusters=2, random_state=0).fit(dist_reshaped)
@@ -185,7 +187,6 @@ def match_all_circles(circles1, circles2):
     valid_mask = (clusters == valid_cluster)
     # 计算最大距离阈值（可以加上一些余量）
     max_distance = np.max(dist[valid_mask]) * 1.1  # 增加10%的余量
-
     # 筛选出距离小于阈值的匹配对
     valid_mask = dist < max_distance
     
@@ -212,7 +213,7 @@ def match_all_circles(circles1, circles2):
     return matched_circles1, matched_circles2, valid_dist
 
 
-def match_all_circles_normalized(circles1, circles2):
+def match_circles_with_normalization(circles1, circles2, log=False):
 
     def normalize_scale(pts):
         """
@@ -249,11 +250,90 @@ def match_all_circles_normalized(circles1, circles2):
     circles1_norm = circles1 / scale1
     circles2_norm = circles2 / scale2
 
-    # 4. 用归一化后的圆参数进行匹配
-    matched_circles1_norm, matched_circles2_norm, dist  = match_all_circles(circles1_norm, circles2_norm)
+    # 4. 用归一化后的圆参数进行匹配（使用不进行归一化的匹配函数）
+    matched_circles1_norm, matched_circles2_norm, dist_norm = match_circles_without_normalization(circles1_norm, circles2_norm)
+    
+    # 将匹配结果和距离转换回原始坐标系
     matched_circles1 = matched_circles1_norm * scale1
     matched_circles2 = matched_circles2_norm * scale2
-
+    # 将距离从归一化空间转换回原始空间
+    dist = dist_norm * scale1  # 使用x方向的缩放因子，因为欧氏距离是各向同性的
+    if log:
+        print_match_results(matched_circles1, matched_circles2)
     return matched_circles1, matched_circles2, dist
     
+def print_match_results(matched_circles1, matched_circles2):
+    # 4. 所有圆心坐标
+    pts1 = np.array([[c[0], c[1]] for c in matched_circles1], dtype=np.float32)
+    pts2 = np.array([[c[0], c[1]] for c in matched_circles2], dtype=np.float32)
+    # 5. 用H将图2所有圆心变换到图1坐标系
+    pts2_homo = np.concatenate([pts2, np.ones((pts2.shape[0], 1))], axis=1)  # (N,3)
+    pts1_homo = np.concatenate([pts1, np.ones((pts1.shape[0], 1))], axis=1)  # (N,3)
+    H, mask = cv2.findHomography(pts2_homo, pts1_homo, cv2.RANSAC, 5.0)
+    pts2_warped = (H @ pts2_homo.T).T
+    pts2_warped = pts2_warped[:, :2] / pts2_warped[:, 2:]
+    # 6. 计算匹配点对的欧式距离
+    dist = np.linalg.norm(pts1 - pts2_warped, axis=1)
+    # 计算误差的方向
+    diff = pts2_warped - pts1
+    xdiff = diff[:, 0]
+    ydiff = diff[:, 1]
+    print(f'距离mean/std/max: {dist.mean():.4f}/{dist.std():.4f}/{dist.max():.4f}，匹配点数: {len(dist)}，xy方向偏差: ({xdiff.mean():.4f},{ydiff.mean():.4f})')
+
+def visualize_circles(img1: np.ndarray, img2: np.ndarray, 
+                    circles1: np.ndarray, circles2: np.ndarray, 
+                    output_path: Union[str, Path, None] = None) -> np.ndarray:
+    """
+    可视化两幅图像中检测到的圆，并可选地保存结果
+    
+    参数:
+        img1: 第一幅图像的BGR数组 (OpenCV格式)
+        img2: 第二幅图像的BGR数组 (OpenCV格式)
+        circles1: 第一幅图像中检测到的圆，形状为(N,3)，每行是(x,y,r)
+        circles2: 第二幅图像中检测到的圆，形状为(M,3)，每行是(x,y,r)
+        output_path: 可选，保存结果图像的路径
+        
+    返回:
+        vis: 可视化结果的BGR图像 (OpenCV格式)
+    """
+    # 确保输入图像是3通道的BGR格式
+    if len(img1.shape) == 2:
+        img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
+    if len(img2.shape) == 2:
+        img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
+    # 创建可视化图像
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+    h = max(h1, h2)
+    vis = np.zeros((h, w1 + w2, 3), dtype=np.uint8)
+    vis[:h1, :w1] = img1
+    vis[:h2, w1:w1+w2] = img2
+    
+    # 绘制圆和编号
+    for i, circle in enumerate(circles1):
+        if len(circle) >= 3:  # 确保有足够的元素解包
+            x, y, r = int(circle[0]), int(circle[1]), int(circle[2])
+            cv2.circle(vis, (x, y), r, (0, 0, 255), 2)
+            # 在圆中心显示编号
+            cv2.putText(vis, str(i), (x - 5, y + 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+    
+    for i, circle in enumerate(circles2):
+        if len(circle) >= 3:  # 确保有足够的元素解包
+            x, y, r = int(circle[0]) + w1, int(circle[1]), int(circle[2])
+            cv2.circle(vis, (x, y), r, (0, 0, 255), 2)
+            # 在圆中心显示编号
+            cv2.putText(vis, str(i), (x - 5, y + 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+    
+    # 保存结果 (直接保存BGR格式，不进行颜色空间转换)
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_dir = output_path.parent
+        if str(output_dir):  # 确保输出目录存在
+            output_dir.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(output_path), vis)
+        print(f"\n匹配结果已保存至: {output_path}")
+    
+    return vis
 

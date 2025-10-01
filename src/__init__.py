@@ -17,7 +17,7 @@ from .detect_circles import find_circles, detect_circles
 from .visualization import plot_circles, plot_matched_circles
 
 # Matching and calibration utilities
-from .match import match_all_circles, match_all_circles_normalized
+from .match import match_circles_with_normalization, match_circles_without_normalization
 from .calibration_circle import generate_circle_array
 
 __all__ = [

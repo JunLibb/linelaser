@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import os
 
-from .match import match_all_circles
+from .match import match_circles_with_normalization
 from .detect_circles import detect_circles
 
 def stitch_images(img1, img2_color, H):
@@ -38,7 +38,7 @@ def getHomography_bgimage(img_b, img_gr):
 
     circles1 = detect_circles(img1)
     circles2 = detect_circles(img2)
-    matched_circles1, matched_circles2, _ = match_all_circles(circles1, circles2)
+    matched_circles1, matched_circles2, _ = match_circles_with_normalization(circles1, circles2)
     matched_pts1 =  np.array([[c[0], c[1]] for c in matched_circles1])
     matched_pts2 =  np.array([[c[0], c[1]] for c in matched_circles2])
     if matched_pts1 is None or matched_pts2 is None:
