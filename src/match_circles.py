@@ -1,5 +1,3 @@
-from .detect_circles import detect_circles
-
 from scipy.spatial import cKDTree
 from sklearn.cluster import KMeans
 import numpy as np
@@ -259,10 +257,10 @@ def match_circles_with_normalization(circles1, circles2, log=False):
     # 将距离从归一化空间转换回原始空间
     dist = dist_norm * scale1  # 使用x方向的缩放因子，因为欧氏距离是各向同性的
     if log:
-        print_match_results(matched_circles1, matched_circles2)
+        print_matched_results(matched_circles1, matched_circles2)
     return matched_circles1, matched_circles2, dist
     
-def print_match_results(matched_circles1, matched_circles2):
+def print_matched_results(matched_circles1, matched_circles2):
     # 4. 所有圆心坐标
     pts1 = np.array([[c[0], c[1]] for c in matched_circles1], dtype=np.float32)
     pts2 = np.array([[c[0], c[1]] for c in matched_circles2], dtype=np.float32)
@@ -280,9 +278,9 @@ def print_match_results(matched_circles1, matched_circles2):
     ydiff = diff[:, 1]
     print(f'距离mean/std/max: {dist.mean():.4f}/{dist.std():.4f}/{dist.max():.4f}，匹配点数: {len(dist)}，xy方向偏差: ({xdiff.mean():.4f},{ydiff.mean():.4f})')
 
-def visualize_circles(img1: np.ndarray, img2: np.ndarray, 
+def plot_matched_results_separate(img1: np.ndarray, img2: np.ndarray, 
                     circles1: np.ndarray, circles2: np.ndarray, 
-                    output_path: Union[str, Path, None] = None) -> np.ndarray:
+                    path=None) -> np.ndarray:
     """
     可视化两幅图像中检测到的圆，并可选地保存结果
     
@@ -291,7 +289,6 @@ def visualize_circles(img1: np.ndarray, img2: np.ndarray,
         img2: 第二幅图像的BGR数组 (OpenCV格式)
         circles1: 第一幅图像中检测到的圆，形状为(N,3)，每行是(x,y,r)
         circles2: 第二幅图像中检测到的圆，形状为(M,3)，每行是(x,y,r)
-        output_path: 可选，保存结果图像的路径
         
     返回:
         vis: 可视化结果的BGR图像 (OpenCV格式)
@@ -325,15 +322,40 @@ def visualize_circles(img1: np.ndarray, img2: np.ndarray,
             # 在圆中心显示编号
             cv2.putText(vis, str(i), (x - 5, y + 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-    
-    # 保存结果 (直接保存BGR格式，不进行颜色空间转换)
-    if output_path is not None:
-        output_path = Path(output_path)
-        output_dir = output_path.parent
-        if str(output_dir):  # 确保输出目录存在
-            output_dir.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(str(output_path), vis)
-        print(f"\n匹配结果已保存至: {output_path}")
+    if path:
+        cv2.imwrite(path, vis)
     
     return vis
 
+def plot_matched_results_merge(src_img, src_circles, matched_circles, path=None):
+    """
+    可视化两幅图像中检测到的圆，并可选地保存结果
+    
+    参数:
+        src_img: 源图像的BGR数组 (OpenCV格式)
+        src_circles: 源图像中检测到的圆，形状为(N,3)，每行是(x,y,r)
+        matched_circles: 匹配到的圆，形状为(M,3)，每行是(x,y,r)
+        path: 可选，保存结果的路径
+        
+    返回:
+        vis: 可视化结果的BGR图像 (OpenCV格式)
+    """
+
+    '如果src_img是灰度图，转换为BGR'
+    if src_img.shape[1] == 2:
+        color_img = cv2.cvtColor(src_img, cv2.COLOR_GRAY2BGR)
+    else:
+        color_img = src_img.copy()
+    
+    H, _ = cv2.findHomography(np.array([[c[0], c[1]] for c in matched_circles]),
+                              np.array([[c[0], c[1]] for c in src_circles]))
+    scale = np.linalg.norm(H[0, :2])
+    for c in matched_circles:
+        pt = np.array([[[c[0], c[1]]]], dtype=np.float32)
+        x2, y2 = cv2.perspectiveTransform(pt, H)[0][0].astype(int)
+        r = int(c[2] * scale)  
+        cv2.circle(color_img, (x2, y2), r, (0, 0, 255), 1)
+    if path:
+        cv2.imwrite(path, color_img)
+        print(f"\n匹配完成！结果已保存至: {path}")
+    return color_img

@@ -1,0 +1,51 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import json
+
+# 添加项目根目录到 Python 路径
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.calibration_circle import generate_circle_array, save_circle_array, load_circle_array, plot_circles
+from src.match_circles import match_circles_with_normalization, plot_matched_results_merge
+from src.detect_circles import detect_circles
+
+def main():
+    input_path = str(Path(__file__).parent / 'input' / 'match_calib' / '0001.png')
+    output_dir = str(Path(__file__).parent / 'output')
+    # Parameters for circle array generation
+    rows = 22
+    cols = 22
+    spacing = 1  # mm
+    large_radius = 0.4  # mm
+    small_radius = 0.275  # mm
+
+    # Generate circle array
+    circle_array = generate_circle_array(rows, cols, spacing, large_radius, small_radius)
+    save_circle_array(output_dir + '/circle_array.json', circle_array)
+    print(f"Circle array saved to {output_dir + '/circle_array.json'}")
+
+    # 读取0001.png
+    img = cv2.imread(input_path)
+    # 检测圆
+    circles = detect_circles(img)
+    # 匹配圆
+    match_img, match_calib, _ = match_circles_with_normalization(circles, circle_array, log=True)
+    # 保存匹配结果
+    vis = plot_matched_results_merge(img, match_img, match_calib, path=output_dir + '/matched_circles.png')
+    # 显示结果
+    # plt.figure(figsize=(16, 8))
+    # plt.imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
+    # plt.title('Detected Circles (Green numbers are circle indices)')
+    # plt.axis('off')
+    # plt.tight_layout()
+    # plt.show()
+    # print(f"\n匹配完成！结果已保存至: {output_dir + '/matched_circles.png'}")
+    return 0
+
+
+
+
+if __name__ == "__main__":
+    main()

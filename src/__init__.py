@@ -10,14 +10,12 @@ them concisely, e.g.:
 from .debayer import debayer_image
 
 # Merge / homography
-from .merge import getHomography_bgimage, stitch_images
+from .merge_channels import merge_image
 
 # Detection and visualization
-from .detect_circles import find_circles, detect_circles
-from .visualization import plot_circles, plot_matched_circles
-
+from .detect_circles import find_circles, detect_circles, plot_dectected_circles
 # Matching and calibration utilities
-from .match import match_circles_with_normalization, match_circles_without_normalization
+from .match_circles import match_circles_with_normalization, match_circles_without_normalization
 from .calibration_circle import generate_circle_array
 
 __all__ = [

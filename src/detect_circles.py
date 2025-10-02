@@ -199,6 +199,8 @@ def detect_circles(gray_img, min_area=50, min_circularity=0.95, min_radius=3, ma
         min_radius: 最小半径
         max_radius: 最大半径
     """
+    if len(gray_img.shape) == 3:
+        gray_img = cv2.cvtColor(gray_img, cv2.COLOR_BGR2GRAY)
     # 1. 二值化，提取黑色区域
     _, thresh = cv2.threshold(gray_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
@@ -283,6 +285,18 @@ def find_circles(img_binary: np.ndarray, min_area: int = 30, roundness_threshold
         circles.append(np.array([center_x, center_y, radius, roundness]))
     
     return circles
+
+def plot_dectected_circles(img, circles, counting=False, path=None):
+    color_img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    for c in circles:
+        cv2.circle(color_img, (int(c[0]), int(c[1])), int(c[2]), (0, 255, 0), 1)
+        cv2.circle(color_img, (int(c[0]), int(c[1])), 2, (0, 0, 255), 1)
+    if counting:
+        for i, c in enumerate(circles):
+            cv2.putText(color_img, str(i+1), (int(c[0]), int(c[1])), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    if path:
+        cv2.imwrite(path, color_img)
+    return color_img
 
 
 
