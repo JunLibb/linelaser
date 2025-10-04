@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.calibration_circle import generate_circle_array, save_circle_array, load_circle_array, plot_circles
-from src.match_circles import match_circles_with_normalization, plot_matched_results_merge
+from src.match_circles import CircleMatching, plot_matched_results_merge
 from src.detect_circles import detect_circles
 
 def main():
@@ -31,17 +31,10 @@ def main():
     # 检测圆
     circles = detect_circles(img)
     # 匹配圆
-    match_img, match_calib, _ = match_circles_with_normalization(circles, circle_array, log=True)
+    matched= CircleMatching(circles, circle_array, log=True)
     # 保存匹配结果
-    vis = plot_matched_results_merge(img, match_img, match_calib, path=output_dir + '/matched_circles.png')
-    # 显示结果
-    # plt.figure(figsize=(16, 8))
-    # plt.imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
-    # plt.title('Detected Circles (Green numbers are circle indices)')
-    # plt.axis('off')
-    # plt.tight_layout()
-    # plt.show()
-    # print(f"\n匹配完成！结果已保存至: {output_dir + '/matched_circles.png'}")
+    matched_circles1, matched_circles2 = matched.get_matching_circles()
+    vis = plot_matched_results_merge(img, matched_circles1, matched_circles2, path=output_dir + '/matched_circles.png')
     return 0
 
 

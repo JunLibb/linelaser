@@ -6,6 +6,107 @@ import os
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, Any
 
+class CircleMatching:
+    def __init__(self, circles1, circles2, log=False):
+        self.dst_circles = None
+        self.src_circles = None
+        self.homography = None
+        self.dst_circles, self.src_circles, _ = self.match_circles_with_normalization(circles1, circles2)
+        self.homography = self.cal_homography()
+        if log:
+            self.cal_matching_errors(verbose=True)
+
+
+    def match_circles_with_normalization(self, circles1, circles2):
+
+        if len(circles1) == 0 or len(circles2) == 0:
+            print('圆检测失败')
+            return None, None, None
+
+        # 1. 提取圆心和半径
+        pts1 = np.array([[c[0], c[1]] for c in circles1], dtype=np.float32)
+        r1 = np.array([c[2] for c in circles1], dtype=np.float32)
+        pts2 = np.array([[c[0], c[1]] for c in circles2], dtype=np.float32)
+        r2 = np.array([c[2] for c in circles2], dtype=np.float32)
+
+        # 2. 归一化
+        scale1 = normalize_scale(pts1)
+        scale2 = normalize_scale(pts2)
+        circles1_norm = circles1 / scale1
+        circles2_norm = circles2 / scale2
+        # 4. 用归一化后的圆参数进行匹配（使用不进行归一化的匹配函数）
+        matched_circles1_norm, matched_circles2_norm, dist_norm = match_circles_without_normalization(circles1_norm, circles2_norm)
+        
+        # 将匹配结果和距离转换回原始坐标系
+        matched_circles1 = matched_circles1_norm * scale1
+        matched_circles2 = matched_circles2_norm * scale2
+        # 将距离从归一化空间转换回原始空间
+        dist = dist_norm * scale1  # 使用x方向的缩放因子，因为欧氏距离是各向同性的
+        return matched_circles1, matched_circles2, dist
+
+    def cal_homography(self):
+        matched_circles1 = self.dst_circles
+        matched_circles2 = self.src_circles
+        # 4. 所有圆心坐标
+        pts1 = np.array([[c[0], c[1]] for c in matched_circles1], dtype=np.float32)
+        pts2 = np.array([[c[0], c[1]] for c in matched_circles2], dtype=np.float32)
+        # 5. 用H将图2所有圆心变换到图1坐标系
+        pts2_homo = np.concatenate([pts2, np.ones((pts2.shape[0], 1))], axis=1)  # (N,3)
+        pts1_homo = np.concatenate([pts1, np.ones((pts1.shape[0], 1))], axis=1)  # (N,3)
+        H, mask = cv2.findHomography(pts2_homo, pts1_homo, cv2.RANSAC, 5.0)
+        return H
+
+
+    def cal_matching_errors(self, verbose=False):
+        matched_circles1 = self.dst_circles
+        matched_circles2 = self.src_circles
+        # 4. 所有圆心坐标
+        pts1 = np.array([[c[0], c[1]] for c in matched_circles1], dtype=np.float32)
+        pts2 = np.array([[c[0], c[1]] for c in matched_circles2], dtype=np.float32)
+        # 5. 用H将图2所有圆心变换到图1坐标系
+        pts2_homo = np.concatenate([pts2, np.ones((pts2.shape[0], 1))], axis=1)  # (N,3)
+        pts1_homo = np.concatenate([pts1, np.ones((pts1.shape[0], 1))], axis=1)  # (N,3)
+        H, mask = cv2.findHomography(pts2_homo, pts1_homo, cv2.RANSAC, 5.0)
+        pts2_warped = (H @ pts2_homo.T).T
+        pts2_warped = pts2_warped[:, :2] / pts2_warped[:, 2:]
+        # 6. 计算匹配点对的欧式距离
+        dist = np.linalg.norm(pts1 - pts2_warped, axis=1)
+        # 计算误差的方向
+        diff = pts2_warped - pts1
+        xdiff = diff[:, 0]
+        ydiff = diff[:, 1]
+        if print:
+            print(f'距离mean/std/max: {dist.mean():.4f}/{dist.std():.4f}/{dist.max():.4f}，匹配点数: {len(dist)}')
+        return dist
+
+    def cal_alignment_vectors(self, verbose=False):
+        matched_circles1 = self.dst_circles
+        matched_circles2 = self.src_circles
+        # 4. 所有圆心坐标
+        pts1 = np.array([[c[0], c[1]] for c in matched_circles1], dtype=np.float32)
+        pts2 = np.array([[c[0], c[1]] for c in matched_circles2], dtype=np.float32)
+        # 5. 用H将图2所有圆心变换到图1坐标系
+        pts2_homo = np.concatenate([pts2, np.ones((pts2.shape[0], 1))], axis=1)  # (N,3)
+        pts1_homo = np.concatenate([pts1, np.ones((pts1.shape[0], 1))], axis=1)  # (N,3)
+        H, mask = cv2.findHomography(pts2_homo, pts1_homo, cv2.RANSAC, 5.0)
+        pts2_warped = (H @ pts2_homo.T).T
+        pts2_warped = pts2_warped[:, :2] / pts2_warped[:, 2:]
+        # 6. 计算匹配点对的欧式距离
+        dist = np.linalg.norm(pts1 - pts2_warped, axis=1)
+        # 计算误差的方向
+        diff = pts2_warped - pts1
+        xdiff = diff[:, 0]
+        ydiff = diff[:, 1]
+        if print:
+            print(f'xy方向偏差: ({xdiff.mean():.4f},{ydiff.mean():.4f})，匹配点数: {len(dist)}')
+        return diff        
+
+    def get_matching_circles(self):
+        return self.dst_circles, self.src_circles
+
+    def get_homography(self):
+        return self.homography
+
 # 计算每对点之间的距离矩阵
 def compute_distance_matrix(points):
     n = len(points)
@@ -111,6 +212,24 @@ def _compute_match_score(pts1, pts2, dist_threshold=0.1, angle_threshold=0.2):
     
     return best_score, best_mapping
 
+def normalize_scale(pts):
+    """
+    将点集归一化到中心为0、尺度为空间相邻点平均间距的空间。
+    返回归一化点、中心、尺度
+    """
+    if len(pts) < 2:
+        return pts, np.zeros(2) if len(pts) == 0 else np.mean(pts, axis=0), 1.0
+    # 使用KD树找到每个点的最近邻点
+    tree = cKDTree(pts)
+    # 查询每个点的最近邻点（不包括自己）
+    distances, _ = tree.query(pts, k=2)  # 第一个最近邻是自己，取第二个
+    # 获取所有点到其最近邻点的距离
+    neighbor_distances = distances[:, 1]
+    # 使用相邻点平均距离作为尺度因子
+    scale = np.mean(neighbor_distances)
+    # 防止除零错误
+    scale = scale if scale > 1e-10 else 1.0
+    return scale
 
 def _match_big_circles(circles1, circles2, num_big=5):
     """
@@ -211,73 +330,38 @@ def match_circles_without_normalization(circles1, circles2):
     return matched_circles1, matched_circles2, valid_dist
 
 
-def match_circles_with_normalization(circles1, circles2, log=False):
+    def match_circles_with_normalization(circles1, circles2, log=False):
 
-    def normalize_scale(pts):
-        """
-        将点集归一化到中心为0、尺度为空间相邻点平均间距的空间。
-        返回归一化点、中心、尺度
-        """
-        if len(pts) < 2:
-            return pts, np.zeros(2) if len(pts) == 0 else np.mean(pts, axis=0), 1.0
-        # 使用KD树找到每个点的最近邻点
-        tree = cKDTree(pts)
-        # 查询每个点的最近邻点（不包括自己）
-        distances, _ = tree.query(pts, k=2)  # 第一个最近邻是自己，取第二个
-        # 获取所有点到其最近邻点的距离
-        neighbor_distances = distances[:, 1]
-        # 使用相邻点平均距离作为尺度因子
-        scale = np.mean(neighbor_distances)
-        # 防止除零错误
-        scale = scale if scale > 1e-10 else 1.0
-        return scale
 
-    if len(circles1) == 0 or len(circles2) == 0:
-        print('圆检测失败')
-        return None, None, None
 
-    # 1. 提取圆心和半径
-    pts1 = np.array([[c[0], c[1]] for c in circles1], dtype=np.float32)
-    r1 = np.array([c[2] for c in circles1], dtype=np.float32)
-    pts2 = np.array([[c[0], c[1]] for c in circles2], dtype=np.float32)
-    r2 = np.array([c[2] for c in circles2], dtype=np.float32)
+        if len(circles1) == 0 or len(circles2) == 0:
+            print('圆检测失败')
+            return None, None, None
 
-    # 2. 归一化
-    scale1 = normalize_scale(pts1)
-    scale2 = normalize_scale(pts2)
-    circles1_norm = circles1 / scale1
-    circles2_norm = circles2 / scale2
+        # 1. 提取圆心和半径
+        pts1 = np.array([[c[0], c[1]] for c in circles1], dtype=np.float32)
+        r1 = np.array([c[2] for c in circles1], dtype=np.float32)
+        pts2 = np.array([[c[0], c[1]] for c in circles2], dtype=np.float32)
+        r2 = np.array([c[2] for c in circles2], dtype=np.float32)
 
-    # 4. 用归一化后的圆参数进行匹配（使用不进行归一化的匹配函数）
-    matched_circles1_norm, matched_circles2_norm, dist_norm = match_circles_without_normalization(circles1_norm, circles2_norm)
+        # 2. 归一化
+        scale1 = normalize_scale(pts1)
+        scale2 = normalize_scale(pts2)
+        circles1_norm = circles1 / scale1
+        circles2_norm = circles2 / scale2
+
+        # 4. 用归一化后的圆参数进行匹配（使用不进行归一化的匹配函数）
+        matched_circles1_norm, matched_circles2_norm, dist_norm = match_circles_without_normalization(circles1_norm, circles2_norm)
+        
+        # 将匹配结果和距离转换回原始坐标系
+        matched_circles1 = matched_circles1_norm * scale1
+        matched_circles2 = matched_circles2_norm * scale2
+        # 将距离从归一化空间转换回原始空间
+        dist = dist_norm * scale1  # 使用x方向的缩放因子，因为欧氏距离是各向同性的
+        if log:
+            print_matched_results(matched_circles1, matched_circles2)
+        return matched_circles1, matched_circles2, dist
     
-    # 将匹配结果和距离转换回原始坐标系
-    matched_circles1 = matched_circles1_norm * scale1
-    matched_circles2 = matched_circles2_norm * scale2
-    # 将距离从归一化空间转换回原始空间
-    dist = dist_norm * scale1  # 使用x方向的缩放因子，因为欧氏距离是各向同性的
-    if log:
-        print_matched_results(matched_circles1, matched_circles2)
-    return matched_circles1, matched_circles2, dist
-    
-def print_matched_results(matched_circles1, matched_circles2):
-    # 4. 所有圆心坐标
-    pts1 = np.array([[c[0], c[1]] for c in matched_circles1], dtype=np.float32)
-    pts2 = np.array([[c[0], c[1]] for c in matched_circles2], dtype=np.float32)
-    # 5. 用H将图2所有圆心变换到图1坐标系
-    pts2_homo = np.concatenate([pts2, np.ones((pts2.shape[0], 1))], axis=1)  # (N,3)
-    pts1_homo = np.concatenate([pts1, np.ones((pts1.shape[0], 1))], axis=1)  # (N,3)
-    H, mask = cv2.findHomography(pts2_homo, pts1_homo, cv2.RANSAC, 5.0)
-    pts2_warped = (H @ pts2_homo.T).T
-    pts2_warped = pts2_warped[:, :2] / pts2_warped[:, 2:]
-    # 6. 计算匹配点对的欧式距离
-    dist = np.linalg.norm(pts1 - pts2_warped, axis=1)
-    # 计算误差的方向
-    diff = pts2_warped - pts1
-    xdiff = diff[:, 0]
-    ydiff = diff[:, 1]
-    print(f'距离mean/std/max: {dist.mean():.4f}/{dist.std():.4f}/{dist.max():.4f}，匹配点数: {len(dist)}，xy方向偏差: ({xdiff.mean():.4f},{ydiff.mean():.4f})')
-
 def plot_matched_results_separate(img1: np.ndarray, img2: np.ndarray, 
                     circles1: np.ndarray, circles2: np.ndarray, 
                     path=None) -> np.ndarray:
@@ -313,7 +397,7 @@ def plot_matched_results_separate(img1: np.ndarray, img2: np.ndarray,
             cv2.circle(vis, (x, y), r, (0, 0, 255), 2)
             # 在圆中心显示编号
             cv2.putText(vis, str(i), (x - 5, y + 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     
     for i, circle in enumerate(circles2):
         if len(circle) >= 3:  # 确保有足够的元素解包
@@ -321,41 +405,75 @@ def plot_matched_results_separate(img1: np.ndarray, img2: np.ndarray,
             cv2.circle(vis, (x, y), r, (0, 0, 255), 2)
             # 在圆中心显示编号
             cv2.putText(vis, str(i), (x - 5, y + 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     if path:
         cv2.imwrite(path, vis)
     
     return vis
 
-def plot_matched_results_merge(src_img, src_circles, matched_circles, path=None):
+def plot_matched_results_merge(src_img, src_circles, matched_circles, path=None, samples=36):
     """
-    可视化两幅图像中检测到的圆，并可选地保存结果
+    可视化两幅图像中匹配的圆，并可选地保存结果
     
     参数:
         src_img: 源图像的BGR数组 (OpenCV格式)
-        src_circles: 源图像中检测到的圆，形状为(N,3)，每行是(x,y,r)
-        matched_circles: 匹配到的圆，形状为(M,3)，每行是(x,y,r)
+        src_circles: 源图像中检测到的圆，形状为(N,4)，每行是(x,y,r,_)
+        matched_circles: 匹配到的圆，形状为(M,4)，每行是(x,y,r,_)
         path: 可选，保存结果的路径
+        samples: 圆上采样点数，越多越精确但速度越慢
         
     返回:
         vis: 可视化结果的BGR图像 (OpenCV格式)
     """
-
-    '如果src_img是灰度图，转换为BGR'
-    if src_img.shape[1] == 2:
+    if len(src_img.shape) == 2:
         color_img = cv2.cvtColor(src_img, cv2.COLOR_GRAY2BGR)
     else:
         color_img = src_img.copy()
     
-    H, _ = cv2.findHomography(np.array([[c[0], c[1]] for c in matched_circles]),
-                              np.array([[c[0], c[1]] for c in src_circles]))
-    scale = np.linalg.norm(H[0, :2])
-    for c in matched_circles:
-        pt = np.array([[[c[0], c[1]]]], dtype=np.float32)
-        x2, y2 = cv2.perspectiveTransform(pt, H)[0][0].astype(int)
-        r = int(c[2] * scale)  
-        cv2.circle(color_img, (x2, y2), r, (0, 0, 255), 1)
+    if len(src_circles) < 4 or len(matched_circles) < 4:
+        print("警告：匹配点数量不足，无法计算单应性矩阵")
+        return color_img
+    
+    # 提取圆心坐标
+    src_pts = np.array([[c[0], c[1]] for c in src_circles], dtype=np.float32)
+    matched_pts = np.array([[c[0], c[1]] for c in matched_circles], dtype=np.float32)
+    
+    # 计算单应性矩阵
+    H, mask = cv2.findHomography(matched_pts, src_pts, cv2.RANSAC, 5.0)
+    if H is None:
+        print("警告：无法计算单应性矩阵")
+        return color_img
+    
+    # 绘制原始圆
+    for x, y, r, _ in src_circles:
+        cv2.circle(color_img, (int(x), int(y)), int(r), (0, 255, 0), 1)
+    
+    # 预计算圆上的采样点（相对坐标）
+    theta = np.linspace(0, 2*np.pi, samples, endpoint=False)
+    circle_offsets = np.column_stack([np.cos(theta), np.sin(theta)])
+    
+    # 绘制变换后的圆
+    for x, y, r, _ in matched_circles:
+        # 1. 变换圆心
+        pt = np.array([[[x, y]]], dtype=np.float32)
+        center = cv2.perspectiveTransform(pt, H)[0][0]
+        x_t, y_t = center
+        
+        # 2. 生成圆上的点并变换
+        circle_pts = circle_offsets * r + [x, y]
+        circle_pts_homo = np.column_stack([circle_pts, np.ones(len(circle_pts))])
+        transformed_pts = (H @ circle_pts_homo.T).T
+        transformed_pts = transformed_pts[:, :2] / transformed_pts[:, 2:]
+        
+        # 3. 绘制变换后的圆（使用多边形近似）
+        pts = transformed_pts.reshape(-1, 1, 2).astype(np.int32)
+        cv2.polylines(color_img, [pts], isClosed=True, color=(0, 0, 255), thickness=1)
+        
+        # 4. 绘制圆心
+        cv2.circle(color_img, (int(x_t), int(y_t)), 2, (255, 0, 0), -1)
+    
     if path:
         cv2.imwrite(path, color_img)
         print(f"\n匹配完成！结果已保存至: {path}")
+    
     return color_img

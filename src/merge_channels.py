@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import os
 
-from src.match_circles import match_circles_with_normalization
+from src.match_circles import CircleMatching
 from src.detect_circles import detect_circles
 
 def merge_image(src_img, dst_img, H, channel='B'):

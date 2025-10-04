@@ -8,7 +8,7 @@ from pathlib import Path
 
 # 添加项目根目录到系统路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.match_circles import match_circles_with_normalization, plot_matched_results_separate
+from src.match_circles import CircleMatching, plot_matched_results_separate
 from src.detect_circles import detect_circles
 
 def load_and_detect(image_path):
@@ -64,10 +64,8 @@ def main():
         
         # 使用归一化匹配
         print("\n开始匹配圆...")
-        matched1, matched2, dist = match_circles_with_normalization(
-            circles1, circles2, log=True
-        )
-        
+        matched = CircleMatching(circles1, circles2, log=True)
+        circles1, circles2 = matched.get_matching_circles()
         # 可视化结果
         vis = plot_matched_results_separate(img1, img2, circles1, circles2)
         # 显示结果
